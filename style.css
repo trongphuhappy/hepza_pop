@@ -399,20 +399,12 @@ html, body {
 .conf-main {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 245px;
-  gap: 18px;
-}
-
-.conf-main.hide-qr {
-  grid-template-columns: 1fr;
-}
-
-.conf-main.hide-qr .qr-panel {
-  display: none;
+  display: flex;
+  flex-direction: column;
 }
 
 .enterprise-board {
+  flex: 1;
   height: 100%;
   min-height: 0;
   overflow-y: auto;

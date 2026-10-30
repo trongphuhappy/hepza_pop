@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hội Nghị Doanh Nghiệp — Bảng Chào Mừng Đại Biểu & Doanh Nghiệp</title>
+  <title>Hội Nghị Doanh Nghiệp — Bảng Chào Mừng Doanh Nghiệp Tham Dự</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
@@ -50,16 +50,13 @@
         <!-- Trạng thái đồng bộ & Nút cài đặt ẩn gọn -->
         <div class="status-box">
           <div class="status-row">
-            <div class="live-indicator" id="connectionBadge" title="Trạng thái đồng bộ dữ liệu Google Form">
+            <div class="live-indicator" id="connectionBadge" title="Nhấn để cấu hình kết nối Google Sheet">
               <span class="status-dot"></span>
-              <span id="connectionText">ĐANG ĐỒNG BỘ...</span>
+              <span id="connectionText">LIVE</span>
             </div>
             <div class="header-quick-icons">
               <button class="icon-btn" id="btnToggleSound" title="Bật/Tắt âm thanh">
                 <span id="soundIcon">🔊</span>
-              </button>
-              <button class="icon-btn" id="btnToggleQR" title="Ẩn/Hiện mã QR">
-                <span>📱</span>
               </button>
               <button class="icon-btn" id="btnSettings" title="Cấu hình kết nối Google Sheet">
                 <span>⚙️</span>
@@ -69,7 +66,6 @@
               </button>
             </div>
           </div>
-          <div class="sync-time" id="lastSyncText">Tự động cập nhật khi khách mời gửi Form</div>
         </div>
       </div>
 
@@ -95,49 +91,16 @@
       </div>
     </header>
 
-    <!-- KHU VỰC HIỂN THỊ CHÍNH: LƯỚI TÊN DOANH NGHIỆP + MÃ QR FORM -->
+    <!-- KHU VỰC HIỂN THỊ CHÍNH: CHỈ HIỂN THỊ STT + TÊN DOANH NGHIỆP -->
     <main class="conf-main" id="mainStage">
       <section class="enterprise-board" id="boardSection">
-        <!-- Trạng thái chờ khi chưa có doanh nghiệp điền form -->
         <div class="empty-board" id="emptyState">
-          <div class="empty-illustration">
-            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-              <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/>
-            </svg>
-          </div>
-          <h2>Đang chờ Quý Doanh nghiệp gửi thông tin đăng ký</h2>
-          <p id="emptyStateDesc">
-            Quý khách mời vui lòng quét mã QR để điền biểu mẫu. Tên doanh nghiệp sẽ tự động hiển thị lên màn hình ngay sau khi hoàn tất gửi biểu mẫu.
-          </p>
+          <h2>Đang chờ cập nhật danh sách doanh nghiệp...</h2>
         </div>
 
-        <!-- Lưới hiển thị các thẻ Tên Doanh nghiệp -->
+        <!-- Lưới hiển thị STT + Tên Doanh nghiệp -->
         <div class="enterprise-grid" id="companyGrid"></div>
       </section>
-
-      <!-- Cột QR Code bên phải để khách mời quét mã nhập Google Form -->
-      <aside class="qr-panel" id="qrSidebar">
-        <div class="qr-card">
-          <div class="qr-header-tag">QUÉT MÃ THAM DỰ</div>
-          <div class="qr-frame" title="Quét mã QR để mở biểu mẫu đăng ký">
-            <img
-              id="qrCodeImg"
-              src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=https%3A%2F%2Fforms.gle%2FfjCd1NZ43Mv89FGR6"
-              alt="QR Code Google Form"
-            />
-          </div>
-          <p class="qr-desc">Quét mã QR để điền thông tin và hiển thị tên doanh nghiệp lên màn hình</p>
-          <a
-            href="https://forms.gle/fjCd1NZ43Mv89FGR6"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="qr-shortlink"
-            id="qrFormLink"
-          >
-            forms.gle/fjCd1NZ43Mv89FGR6 ↗
-          </a>
-        </div>
-      </aside>
     </main>
   </div>
 
@@ -162,7 +125,7 @@
             autocomplete="off"
           />
           <small class="help-text">
-            Hệ thống hỗ trợ tự động đọc trực tiếp từ Sheet <code>1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY</code> (nếu bật quyền Xem công khai) hoặc qua link Google Apps Script (nếu giữ Sheet riêng tư).
+            Hệ thống tự động đọc trực tiếp từ Sheet <code>1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY</code> (nếu mở quyền Xem công khai) hoặc qua link Google Apps Script (nếu giữ Sheet riêng tư).
           </small>
         </div>
 
@@ -170,19 +133,19 @@
           <div class="form-group">
             <label for="inputColumnIndex">Cột "Tên doanh nghiệp" trong Sheet</label>
             <select id="inputColumnIndex">
-              <option value="auto">Tự động nhận diện cột "Tên doanh nghiệp" (Mặc định Cột B)</option>
-              <option value="2">Cột B (Cột 2 - Sau Dấu thời gian)</option>
+              <option value="auto">Tự động nhận diện (Mặc định Cột B)</option>
+              <option value="2">Cột B (Cột 2)</option>
               <option value="3">Cột C (Cột 3)</option>
               <option value="4">Cột D (Cột 4)</option>
-              <option value="5">Cột E (Cột 5)</option>
+              <option value="1">Cột A (Cột 1)</option>
             </select>
           </div>
 
           <div class="form-group">
             <label for="inputPollInterval">Chu kỳ đồng bộ</label>
             <select id="inputPollInterval">
-              <option value="1.5">1.5 giây (Tức thì)</option>
-              <option value="2">2 giây (Khuyên dùng)</option>
+              <option value="1.5">1.5 giây</option>
+              <option value="2">2 giây</option>
               <option value="3">3 giây</option>
             </select>
           </div>
@@ -245,10 +208,6 @@
         <button class="modal-close" id="btnCloseGuide">✕</button>
       </div>
       <div class="modal-body">
-        <p style="font-size: 14px; color: #334155; line-height: 1.5;">
-          Bạn có thể chọn <strong>1 trong 2 cách</strong> dưới đây để màn hình tự động nhận tên doanh nghiệp ngay khi khách mời bấm gửi Google Form:
-        </p>
-
         <div style="padding: 12px 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; font-size: 13.5px; line-height: 1.55;">
           <strong>Cách 1 (Nhanh nhất - Không cần cài mã):</strong><br/>
           Mở <a href="https://docs.google.com/spreadsheets/d/1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY/edit" target="_blank" rel="noopener noreferrer" class="guide-link">Google Sheet của bạn ↗</a> &rarr; Nhấn nút <strong>Chia sẻ (Share)</strong> ở góc trên bên phải &rarr; Đổi quyền truy cập chung thành <strong>"Bất kỳ ai có đường liên kết" (Anyone with the link - Viewer)</strong>. Màn hình web sẽ tự động kết nối và đồng bộ ngay lập tức!

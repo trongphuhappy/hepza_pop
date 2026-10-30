@@ -1,26 +1,22 @@
 /**
  * HỘI NGHỊ DOANH NGHIỆP - MÀN HÌNH ĐỒNG BỘ TRỰC TIẾP VỚI GOOGLE FORM / SHEET
- * - Tự động nhận dữ liệu khi khách hàng gửi Form (https://forms.gle/fjCd1NZ43Mv89FGR6)
- * - Hỗ trợ đồng thời cả 2 phương thức:
- *   1. Google Apps Script Web App URL (khi giữ Sheet riêng tư)
- *   2. Đọc trực tiếp từ Google Sheet ID 1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY (nếu mở quyền Xem công khai)
+ * - Chỉ hiển thị STT + Tên doanh nghiệp
  * - Pop sáng tên doanh nghiệp kèm pháo hoa nhẹ (hỗ trợ nhiều người submit đồng thời)
  * - Thanh Progress Bar tăng tiến, đạt đủ 100 doanh nghiệp nổ pháo hoa lớn toàn màn hình và tiếp tục tăng tiến
  */
 
 const DEFAULT_SHEET_ID = '1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY';
-const DEFAULT_FORM_URL = 'https://forms.gle/fjCd1NZ43Mv89FGR6';
-const STORAGE_KEY_CONFIG = 'hepza_conf_config_v3';
-const STORAGE_KEY_SEEN = 'hepza_conf_seen_ids_v3';
+const STORAGE_KEY_CONFIG = 'hepza_conf_config_v4';
+const STORAGE_KEY_SEEN = 'hepza_conf_seen_ids_v4';
 
 const APPS_SCRIPT_CODE = `const SHEET_ID = '1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY';
-const DEFAULT_COMPANY_COL = 2; // Mặc định Cột B (ngay sau Dấu thời gian)
+const DEFAULT_COMPANY_COL = 2; // Mặc định Cột B (ngay sau Dấu thời gian / STT)
 
 function detectCompanyColIndex(headers, fallbackCol) {
   if (!headers || !headers.length) return fallbackCol - 1;
   const keywords = ['tên doanh nghiệp', 'doanh nghiệp', 'tên công ty', 'công ty', 'tên đơn vị', 'đơn vị', 'company'];
   for (let kw of keywords) {
-    for (let i = 1; i < headers.length; i++) {
+    for (let i = 0; i < headers.length; i++) {
       const h = (headers[i] || '').toString().toLowerCase().trim();
       if (h.indexOf(kw) !== -1) return i;
     }
@@ -52,7 +48,7 @@ function doGet(e) {
 
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        const timestamp = (row[0] || '').toString().trim();
+        const firstCol = (row[0] || '').toString().trim();
         let companyName = (row[colIdx] || '').toString().trim();
         if (!companyName) {
           for (let c = 1; c < row.length; c++) {
@@ -65,9 +61,8 @@ function doGet(e) {
         if (!companyName) continue;
 
         items.push({
-          rowNumber: i + 1,
-          id: 'row_' + (i + 1) + '_' + encodeURIComponent(timestamp) + '_' + encodeURIComponent(companyName),
-          timestamp: timestamp,
+          stt: items.length + 1,
+          id: 'row_' + (i + 1) + '_' + encodeURIComponent(firstCol) + '_' + encodeURIComponent(companyName),
           companyName: companyName
         });
       }
@@ -106,8 +101,7 @@ const defaultConfig = {
   eventSubtitle: 'HỘI NGHỊ KẾT NỐI & ĐỒNG HÀNH CÙNG DOANH NGHIỆP',
   eventTitle: 'CHÀO MỪNG CÁC DOANH NGHIỆP THAM DỰ',
   popExistingOnStart: false,
-  soundEnabled: true,
-  showQR: true
+  soundEnabled: true
 };
 
 let config = loadConfig();
@@ -124,7 +118,6 @@ let isFetching = false;
 const els = {
   connectionBadge: document.getElementById('connectionBadge'),
   connectionText: document.getElementById('connectionText'),
-  lastSyncText: document.getElementById('lastSyncText'),
   eventSubtitleDisplay: document.getElementById('eventSubtitleDisplay'),
   eventTitleDisplay: document.getElementById('eventTitleDisplay'),
 
@@ -137,13 +130,10 @@ const els = {
   milestoneBanner: document.getElementById('milestoneBanner'),
   milestoneTitle: document.getElementById('milestoneTitle'),
 
-  // Board & QR
-  mainStage: document.getElementById('mainStage'),
+  // Board
   boardSection: document.getElementById('boardSection'),
   emptyState: document.getElementById('emptyState'),
   companyGrid: document.getElementById('companyGrid'),
-  qrCodeImg: document.getElementById('qrCodeImg'),
-  qrFormLink: document.getElementById('qrFormLink'),
   soundIcon: document.getElementById('soundIcon'),
 
   // Settings Modal
@@ -162,9 +152,6 @@ const els = {
   btnCopyScriptCode: document.getElementById('btnCopyScriptCode')
 };
 
-/* =========================================================
-   KHỞI TẠO
-   ========================================================= */
 function init() {
   els.scriptCodeDisplay.textContent = APPS_SCRIPT_CODE;
   applyConfigToUI();
@@ -210,13 +197,6 @@ function applyConfigToUI() {
   els.eventSubtitleDisplay.textContent = config.eventSubtitle;
   els.eventTitleDisplay.textContent = config.eventTitle;
   els.targetCountDisplay.textContent = config.targetCount || 100;
-
-  if (config.showQR) {
-    els.mainStage.classList.remove('hide-qr');
-  } else {
-    els.mainStage.classList.add('hide-qr');
-  }
-
   els.soundIcon.textContent = config.soundEnabled ? '🔊' : '🔇';
 }
 
@@ -251,7 +231,6 @@ async function syncFromGoogleSheet() {
     if (scriptUrl) {
       payload = await requestAppsScriptData(scriptUrl, config.columnIndex);
     } else {
-      // Nếu chưa gắn link Apps Script, tự động thử đọc trực tiếp từ Google Sheet (nếu Sheet đã bật Xem công khai)
       payload = await requestDirectGoogleSheetGviz(DEFAULT_SHEET_ID, config.columnIndex);
     }
 
@@ -259,25 +238,19 @@ async function syncFromGoogleSheet() {
       throw new Error((payload && payload.error) || 'Chưa kết nối được Google Sheet');
     }
 
-    const nowStr = new Date().toLocaleTimeString('vi-VN');
-    els.lastSyncText.textContent = `Đồng bộ trực tiếp: ${nowStr}`;
-    setConnectionStatus('connected', 'ĐANG ĐỒNG BỘ FORM (LIVE)');
-
+    setConnectionStatus('connected', 'LIVE');
     processIncomingRows(payload.items || []);
   } catch (err) {
     if (!config.scriptUrl) {
-      setConnectionStatus('idle', 'CẦN MỞ QUYỀN XEM SHEET HOẶC CÀI SCRIPT');
+      setConnectionStatus('idle', 'CHỜ KẾT NỐI SHEET');
     } else {
-      setConnectionStatus('error', 'KIỂM TRA LẠI LINK APPS SCRIPT');
+      setConnectionStatus('error', 'LỖI KẾT NỐI');
     }
   } finally {
     isFetching = false;
   }
 }
 
-/**
- * Phương thức 1: Đọc qua Google Apps Script Web App (JSONP + Fetch fallback)
- */
 function requestAppsScriptData(baseUrl, colSetting) {
   return new Promise((resolve, reject) => {
     const cbName = 'hepzaScriptCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
@@ -321,10 +294,6 @@ function requestAppsScriptData(baseUrl, colSetting) {
   });
 }
 
-/**
- * Phương thức 2: Đọc trực tiếp từ Google Sheet bằng Google Visualization JSONP
- * (Hoạt động ngay lập tức khi Google Sheet để chế độ "Bất kỳ ai có đường liên kết đều có thể xem")
- */
 function requestDirectGoogleSheetGviz(sheetId, colSetting) {
   return new Promise((resolve, reject) => {
     const cbName = 'hepzaGvizCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
@@ -358,7 +327,6 @@ function requestDirectGoogleSheetGviz(sheetId, colSetting) {
         const cols = (response.table.cols || []).map((c) => (c && c.label ? c.label.trim() : ''));
         const rows = response.table.rows || [];
 
-        // Xác định cột Tên doanh nghiệp
         let colIdx = 1; // Mặc định Cột B
         if (colSetting && colSetting !== 'auto') {
           colIdx = Math.max(0, (parseInt(colSetting, 10) || 2) - 1);
@@ -366,7 +334,7 @@ function requestDirectGoogleSheetGviz(sheetId, colSetting) {
           const keywords = ['tên doanh nghiệp', 'doanh nghiệp', 'tên công ty', 'công ty', 'tên đơn vị', 'đơn vị', 'company'];
           let found = -1;
           for (const kw of keywords) {
-            for (let i = 1; i < cols.length; i++) {
+            for (let i = 0; i < cols.length; i++) {
               if (cols[i].toLowerCase().includes(kw)) {
                 found = i;
                 break;
@@ -387,10 +355,9 @@ function requestDirectGoogleSheetGviz(sheetId, colSetting) {
             return '';
           };
 
-          const timestamp = getVal(cells[0]);
+          const firstCol = getVal(cells[0]);
           let companyName = getVal(cells[colIdx]);
 
-          // Bỏ qua nếu hàng đầu tiên vô tình là dòng tiêu đề lặp lại
           if (idx === 0 && companyName.toLowerCase().includes('tên doanh nghiệp')) {
             return;
           }
@@ -408,9 +375,8 @@ function requestDirectGoogleSheetGviz(sheetId, colSetting) {
           if (!companyName) return;
 
           items.push({
-            rowNumber: idx + 2,
-            id: `row_${idx + 2}_${encodeURIComponent(timestamp)}_${encodeURIComponent(companyName)}`,
-            timestamp,
+            stt: items.length + 1,
+            id: `row_${idx + 2}_${encodeURIComponent(firstCol)}_${encodeURIComponent(companyName)}`,
             companyName
           });
         });
@@ -445,7 +411,7 @@ function processIncomingRows(items) {
     .filter((item) => item.companyName && item.companyName.trim() !== '')
     .map((item, idx) => ({
       ...item,
-      orderNumber: idx + 1
+      stt: idx + 1
     }));
 
   const prevCount = companies.length;
@@ -464,7 +430,6 @@ function processIncomingRows(items) {
 
   companies = validItems;
 
-  // Lần đồng bộ đầu tiên khi mới mở trang
   if (!hasCompletedInitialSync) {
     hasCompletedInitialSync = true;
     const target = Number(config.targetCount) || 100;
@@ -481,7 +446,6 @@ function processIncomingRows(items) {
     return;
   }
 
-  // Khi khách mời submit form: có bao nhiêu doanh nghiệp mới sẽ pop sáng đồng thời bấy nhiêu
   if (newEntries.length > 0) {
     triggerSimultaneousPop(newEntries, prevCount);
   } else if (validItems.length !== prevCount) {
@@ -510,7 +474,6 @@ function triggerSimultaneousPop(newItems, previousTotal) {
     playPopChime(Math.min(newItems.length, 5));
   }
 
-  // Hiệu ứng pháo hoa nhẹ ngay tại từng thẻ doanh nghiệp vừa pop lên
   requestAnimationFrame(() => {
     newIds.forEach((id, idx) => {
       const cardEl = els.companyGrid.querySelector(`[data-id="${CSS.escape(id)}"]`);
@@ -576,7 +539,7 @@ function triggerMilestone100Celebration(targetCount = 100) {
 }
 
 /* =========================================================
-   HIỂN THỊ TÊN DOANH NGHIỆP TRÊN MÀN HÌNH
+   HIỂN THỊ CHỈ STT + TÊN DOANH NGHIỆP
    ========================================================= */
 function renderBoard() {
   if (companies.length === 0) {
@@ -589,18 +552,18 @@ function renderBoard() {
   els.emptyState.style.display = 'none';
   els.companyGrid.style.display = 'grid';
 
-  // Doanh nghiệp mới nhất hiển thị lên đầu
+  // Hiển thị doanh nghiệp mới nhất lên đầu
   const reversed = [...companies].reverse();
 
   els.companyGrid.innerHTML = reversed
     .map((item, idx) => {
-      const orderNum = item.orderNumber || companies.length - idx;
-      const orderStr = String(orderNum).padStart(2, '0');
+      const sttNum = item.stt || companies.length - idx;
+      const sttStr = String(sttNum).padStart(2, '0');
       const isPopping = activePoppingIds.has(item.id);
 
       return `
         <article class="enterprise-card ${isPopping ? 'is-popping' : ''}" data-id="${escapeHtml(item.id)}">
-          <div class="card-index">#${orderStr}</div>
+          <div class="card-index">${sttStr}</div>
           <div class="card-body">
             <h3 class="card-title">${escapeHtml(item.companyName)}</h3>
           </div>
@@ -814,10 +777,8 @@ function playMilestoneGrandFanfare() {
    SỰ KIỆN ĐIỀU KHIỂN CÀI ĐẶT
    ========================================================= */
 function bindEvents() {
-  // Click vào trạng thái kết nối để mở cài đặt nếu chưa cấu hình
   els.connectionBadge.addEventListener('click', openSettingsModal);
 
-  // Bật/Tắt âm thanh
   document.getElementById('btnToggleSound').addEventListener('click', () => {
     config.soundEnabled = !config.soundEnabled;
     saveConfig();
@@ -825,22 +786,12 @@ function bindEvents() {
     if (config.soundEnabled) playPopChime(1);
   });
 
-  // Ẩn/Hiện QR
-  document.getElementById('btnToggleQR').addEventListener('click', () => {
-    config.showQR = !config.showQR;
-    saveConfig();
-    applyConfigToUI();
-  });
-
-  // Toàn màn hình
   document.getElementById('btnFullscreen').addEventListener('click', toggleFullscreen);
 
-  // Mở/Đóng Cài đặt
   document.getElementById('btnSettings').addEventListener('click', openSettingsModal);
   document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettingsModal);
 
-  // Lưu Cài đặt
   document.getElementById('btnSaveSettings').addEventListener('click', () => {
     config.scriptUrl = els.inputScriptUrl.value.trim();
     config.columnIndex = els.inputColumnIndex.value || 'auto';
@@ -857,7 +808,6 @@ function bindEvents() {
     startPolling();
   });
 
-  // Làm mới & Pop lại danh sách từ Sheet
   document.getElementById('btnResetSeenHistory').addEventListener('click', () => {
     seenIds.clear();
     saveSeenIds();
@@ -867,7 +817,6 @@ function bindEvents() {
     syncFromGoogleSheet();
   });
 
-  // Mở/Đóng Hướng dẫn
   document.getElementById('btnSwitchToGuide').addEventListener('click', () => {
     closeSettingsModal();
     openGuideModal();
@@ -878,7 +827,6 @@ function bindEvents() {
     openSettingsModal();
   });
 
-  // Copy mã Google Apps Script
   els.btnCopyScriptCode.addEventListener('click', () => {
     navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(() => {
       const oldText = els.btnCopyScriptCode.textContent;
