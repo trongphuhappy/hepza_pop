@@ -99,7 +99,7 @@ const defaultConfig = {
   pollIntervalSec: 2,
   targetCount: 100,
   eventSubtitle: 'HỘI NGHỊ KẾT NỐI & ĐỒNG HÀNH CÙNG DOANH NGHIỆP',
-  eventTitle: 'CHÀO MỪNG CÁC DOANH NGHIỆP THAM DỰ',
+  eventTitle: 'QUÀ TẶNG - GÓI TRẢI NGHIỆM DỊCH VỤ VIETTEL',
   popExistingOnStart: false,
   soundEnabled: true
 };
@@ -174,7 +174,7 @@ function loadConfig() {
 function saveConfig() {
   try {
     localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function loadSeenIds() {
@@ -190,7 +190,7 @@ function loadSeenIds() {
 function saveSeenIds() {
   try {
     localStorage.setItem(STORAGE_KEY_SEEN, JSON.stringify(Array.from(seenIds)));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function applyConfigToUI() {
@@ -738,7 +738,7 @@ function playPopChime(simultaneousCount = 1) {
       osc.start(startTime);
       osc.stop(startTime + 0.7);
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function playMilestoneGrandFanfare() {
@@ -770,7 +770,7 @@ function playMilestoneGrandFanfare() {
       osc.start(now + n.t);
       osc.stop(now + n.t + n.d + 0.05);
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 /* =========================================================
@@ -875,9 +875,9 @@ function closeGuideModal() {
 
 function toggleFullscreen() {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+    document.documentElement.requestFullscreen().catch(() => { });
   } else {
-    document.exitFullscreen().catch(() => {});
+    document.exitFullscreen().catch(() => { });
   }
 }
 
