@@ -89,7 +89,7 @@
         <div class="progress-header">
           <div class="progress-title-group">
             <span class="progress-label">TIẾN ĐỘ DOANH NGHIỆP THAM DỰ</span>
-            <span class="milestone-pill" id="milestoneStatusPill">Mục tiêu: 100 Doanh nghiệp</span>
+            <span class="milestone-pill" id="milestoneStatusPill">Dành riêng 100 Doanh nghiệp đăng ký nhanh nhất</span>
           </div>
           <div class="progress-stats">
             <span class="current-count" id="totalCount">0</span>
@@ -261,7 +261,8 @@
   <!-- Modal phóng to mã QR khi nhấn vào QR trên thanh tiêu đề -->
   <div class="modal-backdrop" id="qrZoomModal" onclick="this.classList.remove('open')">
     <div class="qr-zoom-card" onclick="event.stopPropagation()">
-      <button class="modal-close qr-zoom-close" onclick="document.getElementById('qrZoomModal').classList.remove('open')">✕</button>
+      <button class="modal-close qr-zoom-close"
+        onclick="document.getElementById('qrZoomModal').classList.remove('open')">✕</button>
       <div class="qr-zoom-badge">QUÉT MÃ QR ĐỂ ĐĂNG KÝ</div>
       <img src="assets/qr-form.jpg" alt="QR Code Đăng ký" class="qr-zoom-img" />
       <p class="qr-zoom-caption">Quét mã để điền thông tin doanh nghiệp nhận gói trải nghiệm dịch vụ Viettel</p>
