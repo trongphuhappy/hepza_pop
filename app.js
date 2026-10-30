@@ -518,7 +518,7 @@ function updateProgressBar(count, animateBump = false) {
     els.milestoneStatusPill.textContent = `🎉 Đã đạt mốc ${target} Doanh nghiệp & đang tiếp tục tăng tiến`;
     els.milestoneStatusPill.classList.add('reached');
   } else {
-    els.milestoneStatusPill.textContent = `Mục tiêu: ${target} Doanh nghiệp`;
+    els.milestoneStatusPill.textContent = `${target} DOANH NGHIỆP ĐẦU TIÊN ĐĂNG KÝ`;
     els.milestoneStatusPill.classList.remove('reached');
   }
 }
