@@ -48,7 +48,18 @@
         <!-- Tiêu đề Hội nghị -->
         <div class="title-box">
           <div class="conf-kicker" id="eventSubtitleDisplay">HỘI NGHỊ KẾT NỐI & ĐỒNG HÀNH CÙNG DOANH NGHIỆP</div>
-          <h1 class="conf-title" id="eventTitleDisplay">CHÀO MỪNG CÁC DOANH NGHIỆP THAM DỰ</h1>
+          <h1 class="conf-title" id="eventTitleDisplay">QUÀ TẶNG - GÓI TRẢI NGHIỆM DỊCH VỤ VIETTEL</h1>
+        </div>
+
+        <!-- Mã QR Đăng ký trên thanh tiêu đề -->
+        <div class="header-qr-box" id="headerQrBox" title="Nhấn để phóng to mã QR">
+          <div class="header-qr-text">
+            <span class="header-qr-badge">QUÉT MÃ ĐĂNG KÝ</span>
+            <span class="header-qr-sub">Nhận gói trải nghiệm</span>
+          </div>
+          <div class="header-qr-thumb">
+            <img src="assets/qr-form.jpg" alt="QR Code Đăng ký" />
+          </div>
         </div>
 
         <!-- Trạng thái đồng bộ & Nút cài đặt ẩn gọn -->
@@ -244,6 +255,16 @@
       <div class="modal-footer">
         <button class="btn btn-primary" id="btnGuideToSettings">Quay lại Cài đặt</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal phóng to mã QR khi nhấn vào QR trên thanh tiêu đề -->
+  <div class="modal-backdrop" id="qrZoomModal" onclick="this.classList.remove('open')">
+    <div class="qr-zoom-card" onclick="event.stopPropagation()">
+      <button class="modal-close qr-zoom-close" onclick="document.getElementById('qrZoomModal').classList.remove('open')">✕</button>
+      <div class="qr-zoom-badge">QUÉT MÃ QR ĐỂ ĐĂNG KÝ</div>
+      <img src="assets/qr-form.jpg" alt="QR Code Đăng ký" class="qr-zoom-img" />
+      <p class="qr-zoom-caption">Quét mã để điền thông tin doanh nghiệp nhận gói trải nghiệm dịch vụ Viettel</p>
     </div>
   </div>
 

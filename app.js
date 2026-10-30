@@ -779,6 +779,14 @@ function playMilestoneGrandFanfare() {
 function bindEvents() {
   els.connectionBadge.addEventListener('click', openSettingsModal);
 
+  const headerQrBox = document.getElementById('headerQrBox');
+  const qrZoomModal = document.getElementById('qrZoomModal');
+  if (headerQrBox && qrZoomModal) {
+    headerQrBox.addEventListener('click', () => {
+      qrZoomModal.classList.add('open');
+    });
+  }
+
   document.getElementById('btnToggleSound').addEventListener('click', () => {
     config.soundEnabled = !config.soundEnabled;
     saveConfig();
@@ -844,6 +852,7 @@ function bindEvents() {
     if (e.key === 'Escape') {
       closeSettingsModal();
       closeGuideModal();
+      if (qrZoomModal) qrZoomModal.classList.remove('open');
     } else if (e.key === 'f' || e.key === 'F') {
       toggleFullscreen();
     }
