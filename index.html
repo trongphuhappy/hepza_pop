@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hội Nghị Doanh Nghiệp — Bảng Chào Mừng Đại Biểu & Doanh Nghiệp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Nền kiến trúc hiện đại, tinh tế dành cho hội nghị -->
+  <div class="conference-bg">
+    <div class="ambient-shape shape-1"></div>
+    <div class="ambient-shape shape-2"></div>
+    <div class="subtle-grid"></div>
+  </div>
+
+  <!-- Canvas cho hiệu ứng pháo hoa nhẹ tại từng thẻ & pháo hoa lớn toàn màn hình khi đạt 100 -->
+  <canvas id="fxCanvas"></canvas>
+
+  <!-- Banner thông báo cột mốc 100 Doanh nghiệp (chỉ xuất hiện thoáng qua khi chạm mốc 100) -->
+  <div class="milestone-toast" id="milestoneBanner" aria-hidden="true">
+    <div class="milestone-toast-inner">
+      <span class="milestone-badge">CỘT MỐC ẤN TƯỢNG</span>
+      <h2 id="milestoneTitle">CHÚC MỪNG ĐÃ ĐẠT 100 DOANH NGHIỆP THAM DỰ!</h2>
+      <p>Cảm ơn sự đồng hành của Quý Doanh nghiệp — Danh sách vẫn đang tiếp tục được cập nhật</p>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <!-- HEADER HỘI NGHỊ + LOGO NHÀ TÀI TRỢ / ĐƠN VỊ TỔ CHỨC -->
+    <header class="conf-header">
+      <div class="header-top-row">
+        <!-- Cụm Logo Nhà Tài Trợ & Đơn Vị Tổ Chức -->
+        <div class="sponsors-box">
+          <span class="sponsors-label">ĐƠN VỊ TỔ CHỨC & ĐỒNG HÀNH</span>
+          <div class="sponsors-logo-strip">
+            <img src="assets/sponsors.png" alt="HEPZA - HBA - Techcombank - Viettel" class="sponsors-img" />
+          </div>
+        </div>
+
+        <!-- Tiêu đề Hội nghị -->
+        <div class="title-box">
+          <div class="conf-kicker" id="eventSubtitleDisplay">HỘI NGHỊ KẾT NỐI & ĐỒNG HÀNH CÙNG DOANH NGHIỆP</div>
+          <h1 class="conf-title" id="eventTitleDisplay">CHÀO MỪNG CÁC DOANH NGHIỆP THAM DỰ</h1>
+        </div>
+
+        <!-- Trạng thái kết nối & Đồng hồ -->
+        <div class="status-box">
+          <div class="live-indicator" id="connectionBadge">
+            <span class="status-dot"></span>
+            <span id="connectionText">ĐANG CHỜ KẾT NỐI</span>
+          </div>
+          <div class="sync-time" id="lastSyncText">Cập nhật: --:--:--</div>
+        </div>
+      </div>
+
+      <!-- THANH PROGRESS BAR TIẾN ĐỘ ĐĂNG KÝ -->
+      <div class="progress-section">
+        <div class="progress-header">
+          <div class="progress-title-group">
+            <span class="progress-label">TIẾN ĐỘ DOANH NGHIỆP ĐĂNG KÝ</span>
+            <span class="milestone-pill" id="milestoneStatusPill">Mục tiêu: 100 Doanh nghiệp</span>
+          </div>
+          <div class="progress-stats">
+            <span class="current-count" id="totalCount">0</span>
+            <span class="target-divider">/</span>
+            <span class="target-count" id="targetCountDisplay">100</span>
+            <span class="unit-label">Doanh nghiệp</span>
+            <span class="percent-badge" id="progressPercent">0%</span>
+          </div>
+        </div>
+
+        <div class="progress-track">
+          <div class="progress-fill" id="progressBarFill" style="width: 0%">
+            <div class="progress-glow-tip"></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- KHU VỰC HIỂN THỊ CHÍNH: LƯỚI DOANH NGHIỆP + MÃ QR -->
+    <main class="conf-main" id="mainStage">
+      <section class="enterprise-board" id="boardSection">
+        <!-- Trạng thái chờ khi chưa có dữ liệu -->
+        <div class="empty-board" id="emptyState">
+          <div class="empty-illustration">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/>
+            </svg>
+          </div>
+          <h2>Sẵn sàng đón tiếp Quý Doanh nghiệp</h2>
+          <p>
+            Khi khách mời gửi biểu mẫu Google Form, tên doanh nghiệp sẽ <strong>tự động pop sáng lên màn hình kèm pháo hoa nhẹ</strong> và tăng thanh tiến trình theo thời gian thực.
+          </p>
+          <div class="empty-btns">
+            <button class="btn btn-primary" id="btnTestFromEmpty">
+              ✨ Thử Pop 1 Doanh nghiệp
+            </button>
+            <button class="btn btn-secondary" id="btnTestMultiFromEmpty">
+              🚀 Thử Pop 4 Doanh nghiệp đồng thời
+            </button>
+            <button class="btn btn-outline" id="btnOpenSettingsFromEmpty">
+              ⚙️ Cấu hình Google Sheet
+            </button>
+          </div>
+        </div>
+
+        <!-- Lưới hiển thị các thẻ Doanh nghiệp -->
+        <div class="enterprise-grid" id="companyGrid"></div>
+      </section>
+
+      <!-- Cột QR Code bên phải (Tùy chọn ẩn/hiện) -->
+      <aside class="qr-panel" id="qrSidebar">
+        <div class="qr-card">
+          <div class="qr-header-tag">QUÉT MÃ CHECK-IN</div>
+          <div class="qr-frame" title="Quét mã QR để điền thông tin doanh nghiệp">
+            <img
+              id="qrCodeImg"
+              src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=https%3A%2F%2Fforms.gle%2FfjCd1NZ43Mv89FGR6"
+              alt="QR Code Google Form"
+            />
+          </div>
+          <p class="qr-desc">Quét mã QR để gửi tên doanh nghiệp hiển thị trực tiếp lên màn hình hội nghị</p>
+          <a
+            href="https://forms.gle/fjCd1NZ43Mv89FGR6"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="qr-shortlink"
+            id="qrFormLink"
+          >
+            forms.gle/fjCd1NZ43Mv89FGR6 ↗
+          </a>
+        </div>
+      </aside>
+    </main>
+
+    <!-- THANH ĐIỀU KHIỂN NHANH (TỰ MỜ KHI TRÌNH CHIẾU) -->
+    <footer class="control-bar">
+      <div class="bar-group">
+        <button class="ctrl-btn" id="btnTestSingle" title="Mô phỏng 1 khách mời vừa submit (Phím tắt: Space)">
+          <span>✨</span> +1 Doanh nghiệp
+        </button>
+        <button class="ctrl-btn" id="btnTestBatch" title="Mô phỏng nhiều khách mời submit cùng lúc (Phím tắt: M)">
+          <span>🚀</span> +4 Đồng thời
+        </button>
+        <button class="ctrl-btn" id="btnTestMilestone100" title="Mô phỏng hiệu ứng đạt cột mốc 100 doanh nghiệp">
+          <span>🎆</span> Thử nổ mốc 100
+        </button>
+        <button class="ctrl-btn" id="btnSyncNow" title="Kiểm tra dữ liệu mới ngay lập tức">
+          <span>🔄</span> Đồng bộ ngay
+        </button>
+      </div>
+
+      <div class="bar-group">
+        <button class="ctrl-btn" id="btnToggleSound" title="Bật/Tắt âm thanh thông báo">
+          <span id="soundIcon">🔊</span> <span id="soundLabel">Âm thanh: BẬT</span>
+        </button>
+        <button class="ctrl-btn" id="btnToggleQR" title="Ẩn/Hiện cột mã QR bên phải">
+          <span>📱</span> Ẩn/Hiện QR
+        </button>
+        <button class="ctrl-btn" id="btnGuide" title="Xem mã Google Apps Script để gắn vào Sheet">
+          <span>📖</span> Mã Script
+        </button>
+        <button class="ctrl-btn ctrl-btn-accent" id="btnSettings" title="Cài đặt link kết nối & mục tiêu">
+          <span>⚙️</span> Cài đặt
+        </button>
+        <button class="ctrl-btn" id="btnFullscreen" title="Toàn màn hình (Phím tắt: F)">
+          <span>⛶</span> Toàn màn hình
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- =================================================================
+       MODAL CÀI ĐẶT KẾT NỐI & TÙY CHỈNH HỘI NGHỊ
+       ================================================================= -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>⚙️ Cấu hình Màn hình Hội nghị & Google Sheet</h3>
+        <button class="modal-close" id="btnCloseSettings">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="inputScriptUrl">
+            1. Đường dẫn Web App của Google Apps Script (đuôi <code>/exec</code>) <span class="req">*</span>
+          </label>
+          <input
+            type="url"
+            id="inputScriptUrl"
+            placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+            autocomplete="off"
+          />
+          <small class="help-text">
+            Giúp đọc dữ liệu thời gian thực từ Google Sheet riêng tư. Nhấn <strong>"📖 Xem mã & Hướng dẫn"</strong> bên dưới nếu bạn chưa lấy link.
+          </small>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inputColumnIndex">Cột chứa "Tên doanh nghiệp"</label>
+            <select id="inputColumnIndex">
+              <option value="2">Cột B (Cột 2 - Sau Dấu thời gian)</option>
+              <option value="3">Cột C (Cột 3)</option>
+              <option value="4">Cột D (Cột 4)</option>
+              <option value="5">Cột E (Cột 5)</option>
+              <option value="1">Cột A (Cột 1)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="inputPollInterval">Tần suất cập nhật</label>
+            <select id="inputPollInterval">
+              <option value="2">Mỗi 2 giây (Thời gian thực)</option>
+              <option value="3">Mỗi 3 giây</option>
+              <option value="5">Mỗi 5 giây</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="inputTargetCount">Mốc mục tiêu nổ pháo lớn</label>
+            <input type="number" id="inputTargetCount" value="100" min="1" step="10" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inputEventSubtitle">Dòng tiêu đề phụ</label>
+            <input
+              type="text"
+              id="inputEventSubtitle"
+              value="HỘI NGHỊ KẾT NỐI & ĐỒNG HÀNH CÙNG DOANH NGHIỆP"
+            />
+          </div>
+          <div class="form-group">
+            <label for="inputEventTitle">Tiêu đề chính của hội nghị</label>
+            <input
+              type="text"
+              id="inputEventTitle"
+              value="CHÀO MỪNG CÁC DOANH NGHIỆP THAM DỰ"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="inputFormUrl">Link Google Form (hiển thị mã QR)</label>
+          <input
+            type="url"
+            id="inputFormUrl"
+            value="https://forms.gle/fjCd1NZ43Mv89FGR6"
+          />
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="chkPopExistingOnStart" />
+            <span>Hiệu ứng pop sáng cho cả các doanh nghiệp đã có sẵn khi mới mở trang</span>
+          </label>
+        </div>
+
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="chkShowExtraColumns" checked />
+            <span>Hiển thị thêm thông tin phụ bên dưới tên doanh nghiệp (nếu có)</span>
+          </label>
+        </div>
+
+        <div class="settings-tools">
+          <button type="button" class="btn btn-outline btn-sm" id="btnSwitchToGuide">
+            📖 Xem mã & Hướng dẫn lấy link Google Apps Script
+          </button>
+          <button type="button" class="btn btn-danger-outline btn-sm" id="btnClearDemoData">
+            🧹 Xóa dữ liệu chạy thử (Demo)
+          </button>
+          <button type="button" class="btn btn-danger-outline btn-sm" id="btnResetSeenHistory">
+            🔄 Đặt lại & Hiệu ứng lại từ đầu
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCancelSettings">Đóng</button>
+        <button class="btn btn-primary" id="btnSaveSettings">💾 Lưu cấu hình</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================================================================
+       MODAL HƯỚNG DẪN CÀI GOOGLE APPS SCRIPT
+       ================================================================= -->
+  <div class="modal-backdrop" id="guideModal">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3>📖 Hướng dẫn gắn Google Apps Script vào Google Sheet</h3>
+        <button class="modal-close" id="btnCloseGuide">✕</button>
+      </div>
+      <div class="modal-body">
+        <ol class="steps-list">
+          <li>
+            Mở file Google Sheet của bạn:
+            <a href="https://docs.google.com/spreadsheets/d/1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY/edit" target="_blank" rel="noopener noreferrer" class="guide-link">
+              Mở Google Sheet (1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY) ↗
+            </a>
+          </li>
+          <li>
+            Trên menu, chọn <strong>Tiện ích mở rộng (Extensions)</strong> &rarr; <strong>Apps Script</strong>.
+          </li>
+          <li>
+            Xóa mã cũ và dán đoạn mã dưới đây vào, sau đó nhấn <strong>Ctrl + S</strong> để lưu:
+          </li>
+        </ol>
+
+        <div class="code-box-wrapper">
+          <div class="code-box-header">
+            <span>Mã Google Apps Script (Code.gs)</span>
+            <button class="btn btn-primary btn-sm" id="btnCopyScriptCode">📋 Copy toàn bộ mã</button>
+          </div>
+          <pre class="code-pre"><code id="scriptCodeDisplay"></code></pre>
+        </div>
+
+        <ol class="steps-list" start="4">
+          <li>
+            Nhấn nút <strong>Triển khai (Deploy)</strong> ở góc trên bên phải &rarr; chọn <strong>Tùy chọn triển khai mới (New deployment)</strong>.
+          </li>
+          <li>
+            Chọn loại <strong>Ứng dụng web (Web app)</strong> &rarr; Tại mục <strong>Ai có quyền truy cập (Who has access)</strong> chọn <strong>"Bất kỳ ai" (Anyone)</strong> &rarr; Nhấn <strong>Triển khai (Deploy)</strong>.
+          </li>
+          <li>
+            Copy đường dẫn <strong>URL ứng dụng web (Web app URL)</strong> (có đuôi <code>/exec</code>) và dán vào mục <strong>⚙️ Cài đặt</strong>.
+          </li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btnGuideToSettings">Đã lấy được Link &rarr; Mở Cài đặt</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
