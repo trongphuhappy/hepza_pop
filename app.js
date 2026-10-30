@@ -1,17 +1,32 @@
 /**
- * HỘI NGHỊ DOANH NGHIỆP - BẢNG CHÀO MỪNG & TIẾN ĐỘ ĐĂNG KÝ THỜI GIAN THỰC
- * - Font Sarabun hiện đại, tích hợp Logo Nhà tài trợ (HEPZA, HBA, Techcombank, Viettel)
- * - Pop đồng thời nhiều doanh nghiệp khi submit cùng lúc (kèm hiệu ứng pop sáng & pháo hoa nhẹ tại thẻ)
+ * HỘI NGHỊ DOANH NGHIỆP - MÀN HÌNH ĐỒNG BỘ TRỰC TIẾP VỚI GOOGLE FORM / SHEET
+ * - Tự động nhận dữ liệu khi khách hàng gửi Form (https://forms.gle/fjCd1NZ43Mv89FGR6)
+ * - Hỗ trợ đồng thời cả 2 phương thức:
+ *   1. Google Apps Script Web App URL (khi giữ Sheet riêng tư)
+ *   2. Đọc trực tiếp từ Google Sheet ID 1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY (nếu mở quyền Xem công khai)
+ * - Pop sáng tên doanh nghiệp kèm pháo hoa nhẹ (hỗ trợ nhiều người submit đồng thời)
  * - Thanh Progress Bar tăng tiến, đạt đủ 100 doanh nghiệp nổ pháo hoa lớn toàn màn hình và tiếp tục tăng tiến
  */
 
 const DEFAULT_SHEET_ID = '1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY';
 const DEFAULT_FORM_URL = 'https://forms.gle/fjCd1NZ43Mv89FGR6';
-const STORAGE_KEY_CONFIG = 'hepza_conf_config_v2';
-const STORAGE_KEY_SEEN = 'hepza_conf_seen_ids_v2';
+const STORAGE_KEY_CONFIG = 'hepza_conf_config_v3';
+const STORAGE_KEY_SEEN = 'hepza_conf_seen_ids_v3';
 
 const APPS_SCRIPT_CODE = `const SHEET_ID = '1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY';
-const COMPANY_COLUMN_INDEX = 2; // Cột B (ngay sau Dấu thời gian)
+const DEFAULT_COMPANY_COL = 2; // Mặc định Cột B (ngay sau Dấu thời gian)
+
+function detectCompanyColIndex(headers, fallbackCol) {
+  if (!headers || !headers.length) return fallbackCol - 1;
+  const keywords = ['tên doanh nghiệp', 'doanh nghiệp', 'tên công ty', 'công ty', 'tên đơn vị', 'đơn vị', 'company'];
+  for (let kw of keywords) {
+    for (let i = 1; i < headers.length; i++) {
+      const h = (headers[i] || '').toString().toLowerCase().trim();
+      if (h.indexOf(kw) !== -1) return i;
+    }
+  }
+  return Math.max(0, fallbackCol - 1);
+}
 
 function doGet(e) {
   try {
@@ -28,31 +43,32 @@ function doGet(e) {
     if (lastRow >= 1 && lastCol >= 1) {
       const data = sheet.getRange(1, 1, lastRow, lastCol).getDisplayValues();
       headers = data[0] || [];
-      const colParam = e && e.parameter && e.parameter.col ? parseInt(e.parameter.col, 10) : COMPANY_COLUMN_INDEX;
-      const colIdx = Math.max(0, (isNaN(colParam) ? COMPANY_COLUMN_INDEX : colParam) - 1);
+      let colIdx;
+      if (e && e.parameter && e.parameter.col && e.parameter.col !== 'auto') {
+        colIdx = Math.max(0, (parseInt(e.parameter.col, 10) || DEFAULT_COMPANY_COL) - 1);
+      } else {
+        colIdx = detectCompanyColIndex(headers, DEFAULT_COMPANY_COL);
+      }
 
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         const timestamp = (row[0] || '').toString().trim();
-        const companyName = (row[colIdx] || '').toString().trim();
-        if (!companyName && !timestamp) continue;
-
-        const extraFields = [];
-        for (let c = 1; c < row.length; c++) {
-          if (c !== colIdx && row[c] && row[c].toString().trim() !== '') {
-            extraFields.push({
-              label: headers[c] || ('Cột ' + (c + 1)),
-              value: row[c].toString().trim()
-            });
+        let companyName = (row[colIdx] || '').toString().trim();
+        if (!companyName) {
+          for (let c = 1; c < row.length; c++) {
+            if (row[c] && row[c].toString().trim() !== '') {
+              companyName = row[c].toString().trim();
+              break;
+            }
           }
         }
+        if (!companyName) continue;
 
         items.push({
           rowNumber: i + 1,
           id: 'row_' + (i + 1) + '_' + encodeURIComponent(timestamp) + '_' + encodeURIComponent(companyName),
           timestamp: timestamp,
-          companyName: companyName,
-          extra: extraFields
+          companyName: companyName
         });
       }
     }
@@ -84,14 +100,12 @@ function doGet(e) {
 
 const defaultConfig = {
   scriptUrl: '',
-  columnIndex: 2,
+  columnIndex: 'auto',
   pollIntervalSec: 2,
   targetCount: 100,
   eventSubtitle: 'HỘI NGHỊ KẾT NỐI & ĐỒNG HÀNH CÙNG DOANH NGHIỆP',
   eventTitle: 'CHÀO MỪNG CÁC DOANH NGHIỆP THAM DỰ',
-  formUrl: DEFAULT_FORM_URL,
   popExistingOnStart: false,
-  showExtraColumns: true,
   soundEnabled: true,
   showQR: true
 };
@@ -102,27 +116,10 @@ let hasCompletedInitialSync = false;
 let hasCelebratedMilestone = false;
 
 let companies = [];
-// Lưu danh sách ID vừa mới pop để giữ hiệu ứng sáng trong vài giây
 const activePoppingIds = new Set();
 
 let pollTimer = null;
 let isFetching = false;
-let demoCounter = 0;
-
-const DEMO_COMPANIES = [
-  { companyName: 'TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI (VIETTEL)', extra: [{ label: 'Đơn vị', value: 'Viettel TP.HCM' }] },
-  { companyName: 'NGÂN HÀNG TMCP KỸ THƯƠNG VIỆT NAM (TECHCOMBANK)', extra: [{ label: 'Khối', value: 'Khách hàng Doanh nghiệp' }] },
-  { companyName: 'BAN QUẢN LÝ CÁC KCX VÀ CÔNG NGHIỆP TP.HCM (HEPZA)', extra: [{ label: 'Vai trò', value: 'Ban Tổ Chức' }] },
-  { companyName: 'HIỆP HỘI CÁC DOANH NGHIỆP KCN TP.HCM (HBA)', extra: [{ label: 'Vai trò', value: 'Đơn vị Đồng hành' }] },
-  { companyName: 'CÔNG TY CỔ PHẦN SỮA VIỆT NAM (VINAMILK)', extra: [{ label: 'KCN', value: 'KCN Hiệp Phước' }] },
-  { companyName: 'CÔNG TY TNHH INTEL PRODUCTS VIỆT NAM', extra: [{ label: 'Lĩnh vực', value: 'Công nghệ cao' }] },
-  { companyName: 'CÔNG TY TNHH NIDEC VIỆT NAM', extra: [{ label: 'Lĩnh vực', value: 'Điện tử chính xác' }] },
-  { companyName: 'CÔNG TY CỔ PHẦN TẬP ĐOÀN HÒA PHÁT', extra: [{ label: 'Lĩnh vực', value: 'Công nghiệp sản xuất' }] },
-  { companyName: 'CÔNG TY TNHH SAMSUNG ELECTRONICS HCMC CE COMPLEX', extra: [{ label: 'Lĩnh vực', value: 'Công nghệ điện tử' }] },
-  { companyName: 'CÔNG TY CỔ PHẦN FPT (FPT CORPORATION)', extra: [{ label: 'Lĩnh vực', value: 'Chuyển đổi số & AI' }] },
-  { companyName: 'TỔNG CÔNG TY TÂN CẢNG SÀI GÒN', extra: [{ label: 'Lĩnh vực', value: 'Logistics & Cảng biển' }] },
-  { companyName: 'CÔNG TY TNHH JABIL VIỆT NAM', extra: [{ label: 'KCN', value: 'Khu Công Nghệ Cao' }] }
-];
 
 const els = {
   connectionBadge: document.getElementById('connectionBadge'),
@@ -131,7 +128,7 @@ const els = {
   eventSubtitleDisplay: document.getElementById('eventSubtitleDisplay'),
   eventTitleDisplay: document.getElementById('eventTitleDisplay'),
 
-  // Progress bar elements
+  // Progress bar
   totalCount: document.getElementById('totalCount'),
   targetCountDisplay: document.getElementById('targetCountDisplay'),
   progressPercent: document.getElementById('progressPercent'),
@@ -148,7 +145,6 @@ const els = {
   qrCodeImg: document.getElementById('qrCodeImg'),
   qrFormLink: document.getElementById('qrFormLink'),
   soundIcon: document.getElementById('soundIcon'),
-  soundLabel: document.getElementById('soundLabel'),
 
   // Settings Modal
   settingsModal: document.getElementById('settingsModal'),
@@ -158,9 +154,7 @@ const els = {
   inputTargetCount: document.getElementById('inputTargetCount'),
   inputEventSubtitle: document.getElementById('inputEventSubtitle'),
   inputEventTitle: document.getElementById('inputEventTitle'),
-  inputFormUrl: document.getElementById('inputFormUrl'),
   chkPopExistingOnStart: document.getElementById('chkPopExistingOnStart'),
-  chkShowExtraColumns: document.getElementById('chkShowExtraColumns'),
 
   // Guide Modal
   guideModal: document.getElementById('guideModal'),
@@ -217,11 +211,6 @@ function applyConfigToUI() {
   els.eventTitleDisplay.textContent = config.eventTitle;
   els.targetCountDisplay.textContent = config.targetCount || 100;
 
-  const formUrl = (config.formUrl || DEFAULT_FORM_URL).trim();
-  els.qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=8&data=${encodeURIComponent(formUrl)}`;
-  els.qrFormLink.href = formUrl;
-  els.qrFormLink.textContent = formUrl.replace(/^https?:\/\//, '') + ' ↗';
-
   if (config.showQR) {
     els.mainStage.classList.remove('hide-qr');
   } else {
@@ -229,11 +218,6 @@ function applyConfigToUI() {
   }
 
   els.soundIcon.textContent = config.soundEnabled ? '🔊' : '🔇';
-  els.soundLabel.textContent = config.soundEnabled ? 'Âm thanh: BẬT' : 'Âm thanh: TẮT';
-
-  if (!config.scriptUrl) {
-    setConnectionStatus('idle', 'CHƯA CẤU HÌNH SCRIPT');
-  }
 }
 
 function setConnectionStatus(state, message) {
@@ -247,42 +231,56 @@ function setConnectionStatus(state, message) {
 }
 
 /* =========================================================
-   ĐỒNG BỘ GOOGLE APPS SCRIPT (JSONP + FETCH)
+   ĐỒNG BỘ THỜI GIAN THỰC VỚI GOOGLE SHEET / GOOGLE FORM
    ========================================================= */
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
-  fetchSheetData();
-  const intervalMs = Math.max(1500, (Number(config.pollIntervalSec) || 2) * 1000);
-  pollTimer = setInterval(fetchSheetData, intervalMs);
+  syncFromGoogleSheet();
+  const intervalMs = Math.max(1200, (Number(config.pollIntervalSec) || 2) * 1000);
+  pollTimer = setInterval(syncFromGoogleSheet, intervalMs);
 }
 
-async function fetchSheetData() {
-  const url = (config.scriptUrl || '').trim();
-  if (!url || isFetching) return;
+async function syncFromGoogleSheet() {
+  if (isFetching) return;
   isFetching = true;
 
   try {
-    const payload = await requestScriptData(url, config.columnIndex);
+    let payload = null;
+    const scriptUrl = (config.scriptUrl || '').trim();
+
+    if (scriptUrl) {
+      payload = await requestAppsScriptData(scriptUrl, config.columnIndex);
+    } else {
+      // Nếu chưa gắn link Apps Script, tự động thử đọc trực tiếp từ Google Sheet (nếu Sheet đã bật Xem công khai)
+      payload = await requestDirectGoogleSheetGviz(DEFAULT_SHEET_ID, config.columnIndex);
+    }
+
     if (!payload || !payload.ok) {
-      throw new Error((payload && payload.error) || 'Dữ liệu không hợp lệ');
+      throw new Error((payload && payload.error) || 'Chưa kết nối được Google Sheet');
     }
 
     const nowStr = new Date().toLocaleTimeString('vi-VN');
-    els.lastSyncText.textContent = `Cập nhật: ${nowStr}`;
-    setConnectionStatus('connected', 'TRỰC TIẾP (LIVE)');
+    els.lastSyncText.textContent = `Đồng bộ trực tiếp: ${nowStr}`;
+    setConnectionStatus('connected', 'ĐANG ĐỒNG BỘ FORM (LIVE)');
 
     processIncomingRows(payload.items || []);
   } catch (err) {
-    console.warn('Lỗi kết nối Google Apps Script:', err);
-    setConnectionStatus('error', 'LỖI KẾT NỐI SCRIPT');
+    if (!config.scriptUrl) {
+      setConnectionStatus('idle', 'CẦN MỞ QUYỀN XEM SHEET HOẶC CÀI SCRIPT');
+    } else {
+      setConnectionStatus('error', 'KIỂM TRA LẠI LINK APPS SCRIPT');
+    }
   } finally {
     isFetching = false;
   }
 }
 
-function requestScriptData(baseUrl, colIndex) {
+/**
+ * Phương thức 1: Đọc qua Google Apps Script Web App (JSONP + Fetch fallback)
+ */
+function requestAppsScriptData(baseUrl, colSetting) {
   return new Promise((resolve, reject) => {
-    const cbName = 'hepzaJsonpCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    const cbName = 'hepzaScriptCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
     const script = document.createElement('script');
     let isDone = false;
 
@@ -291,7 +289,7 @@ function requestScriptData(baseUrl, colIndex) {
       isDone = true;
       cleanup();
       reject(new Error('Timeout'));
-    }, 10000);
+    }, 8000);
 
     function cleanup() {
       clearTimeout(timer);
@@ -311,20 +309,136 @@ function requestScriptData(baseUrl, colIndex) {
       isDone = true;
       cleanup();
       const sep = baseUrl.includes('?') ? '&' : '?';
-      fetch(`${baseUrl}${sep}col=${encodeURIComponent(colIndex)}&_t=${Date.now()}`)
+      fetch(`${baseUrl}${sep}col=${encodeURIComponent(colSetting)}&_t=${Date.now()}`)
         .then((r) => r.json())
         .then(resolve)
         .catch(reject);
     };
 
     const sep = baseUrl.includes('?') ? '&' : '?';
-    script.src = `${baseUrl}${sep}col=${encodeURIComponent(colIndex)}&callback=${cbName}&_t=${Date.now()}`;
+    script.src = `${baseUrl}${sep}col=${encodeURIComponent(colSetting)}&callback=${cbName}&_t=${Date.now()}`;
+    document.body.appendChild(script);
+  });
+}
+
+/**
+ * Phương thức 2: Đọc trực tiếp từ Google Sheet bằng Google Visualization JSONP
+ * (Hoạt động ngay lập tức khi Google Sheet để chế độ "Bất kỳ ai có đường liên kết đều có thể xem")
+ */
+function requestDirectGoogleSheetGviz(sheetId, colSetting) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'hepzaGvizCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    const script = document.createElement('script');
+    let isDone = false;
+
+    const timer = setTimeout(() => {
+      if (isDone) return;
+      isDone = true;
+      cleanup();
+      reject(new Error('Sheet đang ở chế độ riêng tư'));
+    }, 6500);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cbName] = function (response) {
+      if (isDone) return;
+      isDone = true;
+      cleanup();
+
+      try {
+        if (!response || response.status === 'error' || !response.table) {
+          reject(new Error('Invalid gviz response'));
+          return;
+        }
+
+        const cols = (response.table.cols || []).map((c) => (c && c.label ? c.label.trim() : ''));
+        const rows = response.table.rows || [];
+
+        // Xác định cột Tên doanh nghiệp
+        let colIdx = 1; // Mặc định Cột B
+        if (colSetting && colSetting !== 'auto') {
+          colIdx = Math.max(0, (parseInt(colSetting, 10) || 2) - 1);
+        } else {
+          const keywords = ['tên doanh nghiệp', 'doanh nghiệp', 'tên công ty', 'công ty', 'tên đơn vị', 'đơn vị', 'company'];
+          let found = -1;
+          for (const kw of keywords) {
+            for (let i = 1; i < cols.length; i++) {
+              if (cols[i].toLowerCase().includes(kw)) {
+                found = i;
+                break;
+              }
+            }
+            if (found !== -1) break;
+          }
+          if (found !== -1) colIdx = found;
+        }
+
+        const items = [];
+        rows.forEach((r, idx) => {
+          const cells = r.c || [];
+          const getVal = (cell) => {
+            if (!cell) return '';
+            if (cell.f !== undefined && cell.f !== null) return String(cell.f).trim();
+            if (cell.v !== undefined && cell.v !== null) return String(cell.v).trim();
+            return '';
+          };
+
+          const timestamp = getVal(cells[0]);
+          let companyName = getVal(cells[colIdx]);
+
+          // Bỏ qua nếu hàng đầu tiên vô tình là dòng tiêu đề lặp lại
+          if (idx === 0 && companyName.toLowerCase().includes('tên doanh nghiệp')) {
+            return;
+          }
+
+          if (!companyName) {
+            for (let c = 1; c < cells.length; c++) {
+              const v = getVal(cells[c]);
+              if (v) {
+                companyName = v;
+                break;
+              }
+            }
+          }
+
+          if (!companyName) return;
+
+          items.push({
+            rowNumber: idx + 2,
+            id: `row_${idx + 2}_${encodeURIComponent(timestamp)}_${encodeURIComponent(companyName)}`,
+            timestamp,
+            companyName
+          });
+        });
+
+        resolve({
+          ok: true,
+          total: items.length,
+          items
+        });
+      } catch (e) {
+        reject(e);
+      }
+    };
+
+    script.onerror = function () {
+      if (isDone) return;
+      isDone = true;
+      cleanup();
+      reject(new Error('Không thể tải trực tiếp từ Google Sheet'));
+    };
+
+    script.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=responseHandler:${cbName}&_t=${Date.now()}`;
     document.body.appendChild(script);
   });
 }
 
 /* =========================================================
-   XỬ LÝ DỮ LIỆU MỚI: POP ĐỒNG THỜI NHIỀU DOANH NGHIỆP & TIẾN ĐỘ
+   XỬ LÝ DỮ LIỆU MỚI: POP ĐỒNG THỜI & TIẾN ĐỘ 100 DOANH NGHIỆP
    ========================================================= */
 function processIncomingRows(items) {
   const validItems = items
@@ -333,13 +447,6 @@ function processIncomingRows(items) {
       ...item,
       orderNumber: idx + 1
     }));
-
-  // Nếu có dữ liệu thật từ Sheet, bỏ dữ liệu Demo
-  const hadOnlyDemo = companies.length > 0 && companies.every((c) => c.isDemo);
-  if (validItems.length > 0 && hadOnlyDemo) {
-    companies = [];
-    hasCelebratedMilestone = false;
-  }
 
   const prevCount = companies.length;
   const newEntries = [];
@@ -357,7 +464,7 @@ function processIncomingRows(items) {
 
   companies = validItems;
 
-  // Lần tải đầu tiên khi mở trang
+  // Lần đồng bộ đầu tiên khi mới mở trang
   if (!hasCompletedInitialSync) {
     hasCompletedInitialSync = true;
     const target = Number(config.targetCount) || 100;
@@ -374,7 +481,7 @@ function processIncomingRows(items) {
     return;
   }
 
-  // Các lần cập nhật tiếp theo: bao nhiêu người submit cùng lúc thì pop đồng thời bấy nhiêu!
+  // Khi khách mời submit form: có bao nhiêu doanh nghiệp mới sẽ pop sáng đồng thời bấy nhiêu
   if (newEntries.length > 0) {
     triggerSimultaneousPop(newEntries, prevCount);
   } else if (validItems.length !== prevCount) {
@@ -383,25 +490,16 @@ function processIncomingRows(items) {
   }
 }
 
-/**
- * Kích hoạt hiệu ứng Pop sáng đồng thời cho 1 hoặc nhiều doanh nghiệp mới
- * kèm pháo hoa nhẹ tại từng thẻ và kiểm tra cột mốc 100
- */
 function triggerSimultaneousPop(newItems, previousTotal) {
   const newIds = newItems.map((item) => item.id);
   newIds.forEach((id) => activePoppingIds.add(id));
 
-  // Render bảng với các thẻ mới ở trạng thái .is-popping
   renderBoard();
-
-  // Cuộn mượt lên đầu bảng để thấy các doanh nghiệp mới vừa xuất hiện
   els.boardSection.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // Cập nhật thanh Progress Bar
   const currentTotal = companies.length;
   updateProgressBar(currentTotal, true);
 
-  // Phát âm thanh hiện đại
   const target = Number(config.targetCount) || 100;
   const crossedMilestone = previousTotal < target && currentTotal >= target && !hasCelebratedMilestone;
 
@@ -412,21 +510,19 @@ function triggerSimultaneousPop(newItems, previousTotal) {
     playPopChime(Math.min(newItems.length, 5));
   }
 
-  // Bắn pháo hoa nhẹ (Sparkle Burst) đồng thời ngay tại vị trí của từng thẻ mới vừa pop lên!
+  // Hiệu ứng pháo hoa nhẹ ngay tại từng thẻ doanh nghiệp vừa pop lên
   requestAnimationFrame(() => {
     newIds.forEach((id, idx) => {
       const cardEl = els.companyGrid.querySelector(`[data-id="${CSS.escape(id)}"]`);
       if (cardEl) {
         const rect = cardEl.getBoundingClientRect();
-        // Nếu có nhiều thẻ cùng lúc, lệch nhau 60ms tạo cảm giác nở rộ tự nhiên
         setTimeout(() => {
-          spawnLightCardFirework(rect.left + rect.width * 0.5, rect.top + rect.height * 0.4);
+          spawnLightCardFirework(rect.left + rect.width * 0.5, rect.top + rect.height * 0.45);
         }, idx * 65);
       }
     });
   });
 
-  // Sau 4.5 giây, gỡ class .is-popping để thẻ trở về trạng thái bình thường
   setTimeout(() => {
     newIds.forEach((id) => activePoppingIds.delete(id));
     newIds.forEach((id) => {
@@ -437,7 +533,7 @@ function triggerSimultaneousPop(newItems, previousTotal) {
 }
 
 /* =========================================================
-   THANH PROGRESS BAR & CỘT MỐC 100 DOANH NGHIỆP
+   THANH PROGRESS BAR & NỔ PHÁO LỚN MỐC 100
    ========================================================= */
 function updateProgressBar(count, animateBump = false) {
   const target = Math.max(1, Number(config.targetCount) || 100);
@@ -452,16 +548,14 @@ function updateProgressBar(count, animateBump = false) {
   const rawPercent = Math.round((count / target) * 100);
   els.progressPercent.textContent = `${rawPercent}%`;
 
-  // Thanh fill tối đa 100% chiều rộng nhưng số liệu và % vẫn tiếp tục tăng tiến (101%, 102%...)
   const barWidth = Math.min(100, (count / target) * 100);
   els.progressBarFill.style.width = `${barWidth}%`;
 
   if (count >= target) {
-    els.milestoneStatusPill.textContent = `🎉 Đã đạt & vượt mốc ${target} Doanh nghiệp! (Đang tiếp tục tăng tiến)`;
+    els.milestoneStatusPill.textContent = `🎉 Đã đạt mốc ${target} Doanh nghiệp & đang tiếp tục tăng tiến`;
     els.milestoneStatusPill.classList.add('reached');
   } else {
-    const remaining = target - count;
-    els.milestoneStatusPill.textContent = `Mục tiêu: ${target} Doanh nghiệp (Còn ${remaining} đơn vị)`;
+    els.milestoneStatusPill.textContent = `Mục tiêu: ${target} Doanh nghiệp`;
     els.milestoneStatusPill.classList.remove('reached');
   }
 }
@@ -474,7 +568,6 @@ function triggerMilestone100Celebration(targetCount = 100) {
     playMilestoneGrandFanfare();
   }
 
-  // Nổ pháo hoa lớn toàn màn hình liên hoàn trong 5.5 giây
   spawnGrandFullscreenFireworks();
 
   setTimeout(() => {
@@ -483,7 +576,7 @@ function triggerMilestone100Celebration(targetCount = 100) {
 }
 
 /* =========================================================
-   HIỂN THỊ LƯỚI DOANH NGHIỆP
+   HIỂN THỊ TÊN DOANH NGHIỆP TRÊN MÀN HÌNH
    ========================================================= */
 function renderBoard() {
   if (companies.length === 0) {
@@ -496,7 +589,7 @@ function renderBoard() {
   els.emptyState.style.display = 'none';
   els.companyGrid.style.display = 'grid';
 
-  // Hiển thị doanh nghiệp mới nhất ở đầu danh sách
+  // Doanh nghiệp mới nhất hiển thị lên đầu
   const reversed = [...companies].reverse();
 
   els.companyGrid.innerHTML = reversed
@@ -504,73 +597,23 @@ function renderBoard() {
       const orderNum = item.orderNumber || companies.length - idx;
       const orderStr = String(orderNum).padStart(2, '0');
       const isPopping = activePoppingIds.has(item.id);
-      const extraText =
-        config.showExtraColumns && Array.isArray(item.extra) && item.extra.length > 0
-          ? item.extra.map((e) => `${escapeHtml(e.label)}: ${escapeHtml(e.value)}`).join(' • ')
-          : '';
 
       return `
-        <article class="enterprise-card ${isPopping ? 'is-popping' : ''}" data-id="${escapeHtml(item.id)}" title="Nhấn để hiệu ứng sáng lại doanh nghiệp này">
+        <article class="enterprise-card ${isPopping ? 'is-popping' : ''}" data-id="${escapeHtml(item.id)}">
           <div class="card-index">#${orderStr}</div>
           <div class="card-body">
             <h3 class="card-title">${escapeHtml(item.companyName)}</h3>
-            ${extraText ? `<div class="card-sub">${extraText}</div>` : ''}
-            <div class="card-meta-row">
-              ${isPopping ? '<span class="badge-just-now">MỚI CẬP NHẬT</span>' : ''}
-              <span>${escapeHtml(item.timestamp || 'Vừa đăng ký')}</span>
-            </div>
           </div>
         </article>
       `;
     })
     .join('');
-
-  // Click vào thẻ bất kỳ để kích hoạt lại hiệu ứng pop sáng + pháo hoa nhẹ tại thẻ đó
-  els.companyGrid.querySelectorAll('.enterprise-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      card.classList.remove('is-popping');
-      void card.offsetWidth; // Reflow
-      card.classList.add('is-popping');
-      const rect = card.getBoundingClientRect();
-      spawnLightCardFirework(rect.left + rect.width * 0.5, rect.top + rect.height * 0.4);
-      if (config.soundEnabled) playPopChime(1);
-      setTimeout(() => card.classList.remove('is-popping'), 3500);
-    });
-  });
-}
-
-/* =========================================================
-   CHẾ ĐỘ MÔ PHỎNG (TEST 1 NGƯỜI, NHIỀU NGƯỜI CÙNG LÚC, MỐC 100)
-   ========================================================= */
-function addDemoEnterprises(batchSize = 1) {
-  const prevCount = companies.length;
-  const newItems = [];
-  const nowStr = new Date().toLocaleTimeString('vi-VN');
-
-  for (let i = 0; i < batchSize; i++) {
-    const sample = DEMO_COMPANIES[demoCounter % DEMO_COMPANIES.length];
-    demoCounter++;
-    const orderNum = companies.length + 1;
-    const item = {
-      id: `demo_${Date.now()}_${demoCounter}_${Math.random().toString(36).slice(2, 6)}`,
-      orderNumber: orderNum,
-      companyName: sample.companyName,
-      extra: sample.extra,
-      timestamp: `${nowStr}`,
-      isDemo: true
-    };
-    companies.push(item);
-    newItems.push(item);
-  }
-
-  triggerSimultaneousPop(newItems, prevCount);
 }
 
 /* =========================================================
    HỆ THỐNG PHÁO HOA (PHÁO HOA NHẸ TẠI THẺ & PHÁO HOA LỚN MỐC 100)
    ========================================================= */
 let fxParticles = [];
-let fxRockets = [];
 let fxAnimId = null;
 
 function initFxCanvas() {
@@ -583,9 +626,6 @@ function initFxCanvas() {
   resize();
 }
 
-/**
- * Pháo hoa nhẹ & hạt sáng tinh tế ngay tại thẻ doanh nghiệp vừa pop lên
- */
 function spawnLightCardFirework(x, y) {
   const colors = ['#e60028', '#1d4ed8', '#f59e0b', '#10b981', '#38bdf8'];
   const count = 26;
@@ -611,14 +651,10 @@ function spawnLightCardFirework(x, y) {
   startFxLoop();
 }
 
-/**
- * Pháo hoa lớn toàn màn hình khi đạt đủ cột mốc 100 Doanh nghiệp
- */
 function spawnGrandFullscreenFireworks() {
   const canvas = document.getElementById('fxCanvas');
   const palette = ['#e60028', '#2563eb', '#f59e0b', '#10b981', '#ec4899', '#06b6d4', '#fbbf24'];
 
-  // Bắn 14 quả pháo hoa lớn liên tiếp khắp màn hình trong 4.5 giây
   for (let wave = 0; wave < 14; wave++) {
     setTimeout(() => {
       const targetX = canvas.width * (0.15 + Math.random() * 0.7);
@@ -711,18 +747,14 @@ function ensureAudioCtx() {
   return audioCtx;
 }
 
-/**
- * Âm thanh Chime trong trẻo, hiện đại khi doanh nghiệp pop lên
- */
 function playPopChime(simultaneousCount = 1) {
   try {
     const ctx = ensureAudioCtx();
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    // Hợp âm trong trẻo, thanh lịch
-    const baseNotes = [587.33, 880.0, 1174.66]; // D5 - A5 - D6
-    const extraNotes = simultaneousCount > 1 ? [1479.98] : []; // F#6 khi có nhiều doanh nghiệp cùng lúc
+    const baseNotes = [587.33, 880.0, 1174.66];
+    const extraNotes = simultaneousCount > 1 ? [1479.98] : [];
     const allNotes = [...baseNotes, ...extraNotes];
 
     allNotes.forEach((freq, idx) => {
@@ -746,9 +778,6 @@ function playPopChime(simultaneousCount = 1) {
   } catch (e) {}
 }
 
-/**
- * Âm thanh chúc mừng cột mốc 100 Doanh nghiệp
- */
 function playMilestoneGrandFanfare() {
   try {
     const ctx = ensureAudioCtx();
@@ -782,30 +811,11 @@ function playMilestoneGrandFanfare() {
 }
 
 /* =========================================================
-   SỰ KIỆN NÚT BẤM & PHÍM TẮT
+   SỰ KIỆN ĐIỀU KHIỂN CÀI ĐẶT
    ========================================================= */
 function bindEvents() {
-  // Mô phỏng 1 doanh nghiệp
-  document.getElementById('btnTestSingle').addEventListener('click', () => addDemoEnterprises(1));
-  document.getElementById('btnTestFromEmpty').addEventListener('click', () => addDemoEnterprises(1));
-
-  // Mô phỏng 4 doanh nghiệp submit đồng thời
-  document.getElementById('btnTestBatch').addEventListener('click', () => addDemoEnterprises(4));
-  document.getElementById('btnTestMultiFromEmpty').addEventListener('click', () => addDemoEnterprises(4));
-
-  // Mô phỏng nổ pháo hoa cột mốc 100
-  document.getElementById('btnTestMilestone100').addEventListener('click', () => {
-    triggerMilestone100Celebration(config.targetCount || 100);
-  });
-
-  // Đồng bộ ngay
-  document.getElementById('btnSyncNow').addEventListener('click', () => {
-    if (!config.scriptUrl) {
-      openSettingsModal();
-    } else {
-      fetchSheetData();
-    }
-  });
+  // Click vào trạng thái kết nối để mở cài đặt nếu chưa cấu hình
+  els.connectionBadge.addEventListener('click', openSettingsModal);
 
   // Bật/Tắt âm thanh
   document.getElementById('btnToggleSound').addEventListener('click', () => {
@@ -827,21 +837,18 @@ function bindEvents() {
 
   // Mở/Đóng Cài đặt
   document.getElementById('btnSettings').addEventListener('click', openSettingsModal);
-  document.getElementById('btnOpenSettingsFromEmpty').addEventListener('click', openSettingsModal);
   document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettingsModal);
 
   // Lưu Cài đặt
   document.getElementById('btnSaveSettings').addEventListener('click', () => {
     config.scriptUrl = els.inputScriptUrl.value.trim();
-    config.columnIndex = parseInt(els.inputColumnIndex.value, 10) || 2;
-    config.pollIntervalSec = parseInt(els.inputPollInterval.value, 10) || 2;
+    config.columnIndex = els.inputColumnIndex.value || 'auto';
+    config.pollIntervalSec = parseFloat(els.inputPollInterval.value) || 2;
     config.targetCount = Math.max(1, parseInt(els.inputTargetCount.value, 10) || 100);
     config.eventSubtitle = els.inputEventSubtitle.value.trim() || defaultConfig.eventSubtitle;
     config.eventTitle = els.inputEventTitle.value.trim() || defaultConfig.eventTitle;
-    config.formUrl = els.inputFormUrl.value.trim() || DEFAULT_FORM_URL;
     config.popExistingOnStart = els.chkPopExistingOnStart.checked;
-    config.showExtraColumns = els.chkShowExtraColumns.checked;
 
     saveConfig();
     applyConfigToUI();
@@ -850,31 +857,17 @@ function bindEvents() {
     startPolling();
   });
 
-  // Xóa dữ liệu chạy thử (Demo)
-  document.getElementById('btnClearDemoData').addEventListener('click', () => {
-    companies = companies.filter((c) => !c.isDemo);
-    hasCelebratedMilestone = companies.length >= (Number(config.targetCount) || 100);
-    renderBoard();
-    updateProgressBar(companies.length, false);
-    closeSettingsModal();
-  });
-
-  // Đặt lại lịch sử đã hiện
+  // Làm mới & Pop lại danh sách từ Sheet
   document.getElementById('btnResetSeenHistory').addEventListener('click', () => {
     seenIds.clear();
     saveSeenIds();
     hasCelebratedMilestone = false;
     hasCompletedInitialSync = true;
     closeSettingsModal();
-    if (config.scriptUrl) {
-      fetchSheetData();
-    } else if (companies.length > 0) {
-      triggerSimultaneousPop(companies, 0);
-    }
+    syncFromGoogleSheet();
   });
 
-  // Mở/Đóng Hướng dẫn Script
-  document.getElementById('btnGuide').addEventListener('click', openGuideModal);
+  // Mở/Đóng Hướng dẫn
   document.getElementById('btnSwitchToGuide').addEventListener('click', () => {
     closeSettingsModal();
     openGuideModal();
@@ -896,7 +889,6 @@ function bindEvents() {
     });
   });
 
-  // Phím tắt nhanh
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
       return;
@@ -904,12 +896,6 @@ function bindEvents() {
     if (e.key === 'Escape') {
       closeSettingsModal();
       closeGuideModal();
-    } else if (e.key === ' ' || e.code === 'Space') {
-      e.preventDefault();
-      addDemoEnterprises(1);
-    } else if (e.key === 'm' || e.key === 'M') {
-      e.preventDefault();
-      addDemoEnterprises(4);
     } else if (e.key === 'f' || e.key === 'F') {
       toggleFullscreen();
     }
@@ -918,14 +904,12 @@ function bindEvents() {
 
 function openSettingsModal() {
   els.inputScriptUrl.value = config.scriptUrl || '';
-  els.inputColumnIndex.value = String(config.columnIndex || 2);
+  els.inputColumnIndex.value = String(config.columnIndex || 'auto');
   els.inputPollInterval.value = String(config.pollIntervalSec || 2);
   els.inputTargetCount.value = String(config.targetCount || 100);
   els.inputEventSubtitle.value = config.eventSubtitle;
   els.inputEventTitle.value = config.eventTitle;
-  els.inputFormUrl.value = config.formUrl || DEFAULT_FORM_URL;
   els.chkPopExistingOnStart.checked = !!config.popExistingOnStart;
-  els.chkShowExtraColumns.checked = config.showExtraColumns !== false;
   els.settingsModal.classList.add('open');
 }
 

@@ -1,25 +1,24 @@
 /**
- * GOOGLE APPS SCRIPT - KẾT NỐI DỮ LIỆU GOOGLE FORM / SHEET VỚI MÀN HÌNH SỰ KIỆN
- * Sheet ID mặc định: 1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY
- *
- * HƯỚNG DẪN CÀI ĐẶT:
- * 1. Mở file Google Sheet của bạn:
- *    https://docs.google.com/spreadsheets/d/1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY/edit
- * 2. Trên thanh menu, chọn: Tiện ích mở rộng (Extensions) -> Apps Script
- * 3. Xóa toàn bộ mã cũ (nếu có) và dán toàn bộ đoạn mã này vào.
- * 4. Nhấn biểu tượng Đĩa mềm (Lưu / Ctrl+S).
- * 5. Nhấn nút "Triển khai" (Deploy) ở góc trên bên phải -> Chọn "Tùy chọn triển khai mới" (New deployment).
- * 6. Ở mục "Chọn loại" (biểu tượng bánh răng), chọn "Ứng dụng web" (Web app).
- * 7. Cấu hình:
- *    - Thực thi dưới dạng (Execute as): "Tôi" (Me)
- *    - Ai có quyền truy cập (Who has access): "Bất kỳ ai" (Anyone)  <-- QUAN TRỌNG!
- * 8. Nhấn "Triển khai" (Deploy), cấp quyền (Authorize access) nếu Google hỏi.
- * 9. Copy đường link "URL ứng dụng web" (có đuôi /exec) và dán vào phần Cài đặt trên trang web!
+ * GOOGLE APPS SCRIPT - ĐỒNG BỘ TRỰC TIẾP VỚI GOOGLE FORM & GOOGLE SHEET
+ * Sheet ID: 1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY
  */
 
 const SHEET_ID = '1aYdZGk3-l-RuVWwrwQjJLoY1Jw38TbTbzuLYq6g3gOY';
-// Cột chứa Tên doanh nghiệp (1 = Cột A, 2 = Cột B, 3 = Cột C...)
-const COMPANY_COLUMN_INDEX = 2; // Mặc định Cột B (ngay sau cột Dấu thời gian)
+const DEFAULT_COMPANY_COL = 2; // Mặc định Cột B (ngay sau cột Dấu thời gian)
+
+function detectCompanyColIndex(headers, fallbackCol) {
+  if (!headers || !headers.length) return fallbackCol - 1;
+  const keywords = ['tên doanh nghiệp', 'doanh nghiệp', 'tên công ty', 'công ty', 'tên đơn vị', 'đơn vị', 'company'];
+  for (let kw of keywords) {
+    for (let i = 1; i < headers.length; i++) {
+      const h = (headers[i] || '').toString().toLowerCase().trim();
+      if (h.indexOf(kw) !== -1) {
+        return i;
+      }
+    }
+  }
+  return Math.max(0, fallbackCol - 1);
+}
 
 function doGet(e) {
   try {
@@ -33,11 +32,9 @@ function doGet(e) {
       ss = SpreadsheetApp.openById(SHEET_ID);
     }
 
-    // Lấy trang tính đầu tiên (thường là Câu trả lời biểu mẫu 1 / Form Responses 1)
     const sheet = ss.getSheets()[0];
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
-
     const items = [];
     let headers = [];
 
@@ -45,80 +42,61 @@ function doGet(e) {
       const data = sheet.getRange(1, 1, lastRow, lastCol).getDisplayValues();
       headers = data[0] || [];
 
-      // Cho phép truyền tham số ?col=2 từ web nếu muốn đổi cột linh hoạt
-      const colParam = e && e.parameter && e.parameter.col ? parseInt(e.parameter.col, 10) : COMPANY_COLUMN_INDEX;
-      const colIdx = Math.max(0, (isNaN(colParam) ? COMPANY_COLUMN_INDEX : colParam) - 1);
+      let colIdx;
+      if (e && e.parameter && e.parameter.col && e.parameter.col !== 'auto') {
+        colIdx = Math.max(0, (parseInt(e.parameter.col, 10) || DEFAULT_COMPANY_COL) - 1);
+      } else {
+        colIdx = detectCompanyColIndex(headers, DEFAULT_COMPANY_COL);
+      }
 
-      // Duyệt từ dòng 2 (bỏ qua dòng tiêu đề đầu tiên)
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         const timestamp = (row[0] || '').toString().trim();
-        const companyName = (row[colIdx] || '').toString().trim();
+        let companyName = (row[colIdx] || '').toString().trim();
 
-        // Bỏ qua dòng trống hoàn toàn
-        if (!companyName && !timestamp) continue;
-
-        // Gom các cột phụ (nếu có thêm thông tin người đại diện, chức vụ...)
-        const extraFields = [];
-        for (let c = 1; c < row.length; c++) {
-          if (c !== colIdx && row[c] && row[c].toString().trim() !== '') {
-            extraFields.push({
-              label: headers[c] || `Cột ${c + 1}`,
-              value: row[c].toString().trim()
-            });
+        // Nếu cột mặc định trống nhưng các cột kế tiếp có dữ liệu, lấy cột có dữ liệu đầu tiên
+        if (!companyName) {
+          for (let c = 1; c < row.length; c++) {
+            if (row[c] && row[c].toString().trim() !== '') {
+              companyName = row[c].toString().trim();
+              break;
+            }
           }
         }
 
+        if (!companyName) continue;
+
         items.push({
           rowNumber: i + 1,
-          id: `row_${i + 1}_${encodeURIComponent(timestamp)}_${encodeURIComponent(companyName)}`,
+          id: 'row_' + (i + 1) + '_' + encodeURIComponent(timestamp) + '_' + encodeURIComponent(companyName),
           timestamp: timestamp,
-          companyName: companyName,
-          extra: extraFields,
-          rawRow: row
+          companyName: companyName
         });
       }
     }
 
-    const payload = {
+    const jsonString = JSON.stringify({
       ok: true,
-      sheetName: sheet.getName(),
-      updatedAt: new Date().toISOString(),
-      headers: headers,
       total: items.length,
       items: items
-    };
-
-    const jsonString = JSON.stringify(payload);
-
-    // Hỗ trợ JSONP nếu gọi qua ?callback=... (giúp chạy trực tiếp từ file:// không bị lỗi CORS)
-    if (e && e.parameter && e.parameter.callback) {
-      const callbackName = e.parameter.callback.replace(/[^a-zA-Z0-9_$.]/g, '');
-      return ContentService
-        .createTextOutput(`${callbackName}(${jsonString});`)
-        .setMimeType(ContentService.MimeType.JAVASCRIPT);
-    }
-
-    return ContentService
-      .createTextOutput(jsonString)
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch (error) {
-    const errPayload = JSON.stringify({
-      ok: false,
-      error: error.toString()
     });
 
     if (e && e.parameter && e.parameter.callback) {
-      const callbackName = e.parameter.callback.replace(/[^a-zA-Z0-9_$.]/g, '');
-      return ContentService
-        .createTextOutput(`${callbackName}(${errPayload});`)
+      const cb = e.parameter.callback.replace(/[^a-zA-Z0-9_$.]/g, '');
+      return ContentService.createTextOutput(cb + '(' + jsonString + ');')
         .setMimeType(ContentService.MimeType.JAVASCRIPT);
     }
 
-    return ContentService
-      .createTextOutput(errPayload)
+    return ContentService.createTextOutput(jsonString)
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    const errStr = JSON.stringify({ ok: false, error: error.toString() });
+    if (e && e.parameter && e.parameter.callback) {
+      const cb = e.parameter.callback.replace(/[^a-zA-Z0-9_$.]/g, '');
+      return ContentService.createTextOutput(cb + '(' + errStr + ');')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+    return ContentService.createTextOutput(errStr)
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
-
